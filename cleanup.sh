@@ -1,0 +1,95 @@
+```
+admin@localhost:~$ cat cleanup_sftp.sh 
+#!/bin/bash
+set -euo pipefail
+
+HOME_DIR="/home/admin"
+ROOT="$HOME_DIR/SFTP"
+BACKUPS_DIR="$ROOT/BACKUPS"
+LOGDIR="$HOME_DIR/cleanup_logs"
+LOGFILE="$LOGDIR/cleanup_$(date +'%Y%m%d_%H%M%S').log"
+
+##### START Logging #####
+timestamp() { date +"%d/%m/%Y %H:%M"; }
+
+echo "$(timestamp): Cleanup started" >> "$LOGFILE"
+
+shopt -s nullglob
+
+##### 1. SFTP Cleanup #####
+echo "$(timestamp): Cleaning $ROOT except protected items..." >> "$LOGFILE"
+
+# List of protected folders/files in SFTP
+protected_sftp=("BACKUPS" "RANDOM" "SOFTWARE")
+
+cd "$ROOT" || exit 1
+
+for item in *; do
+    keep=false
+    for p in "${protected_sftp[@]}"; do
+        if [[ "$item" == "$p" ]]; then
+            keep=true
+            break
+        fi
+    done
+    if ! $keep; then
+        rm -rf "$item"
+        echo "$(timestamp): $item deleted" >> "$LOGFILE"
+    fi
+done
+
+##### 2. Home Directory Cleanup #####
+echo "$(timestamp): Cleaning $HOME_DIR except protected items..." >> "$LOGFILE"
+
+# List of protected folders/files in HOME
+protected_home=("cleanup_logs" "SFTP" "README.txt" "cleanup_sftp.sh")
+
+cd "$HOME_DIR" || exit 1
+
+for item in *; do
+    keep=false
+    for p in "${protected_home[@]}"; do
+        if [[ "$item" == "$p" ]]; then
+            keep=true
+            break
+        fi
+    done
+    if ! $keep; then
+        rm -rf "$item"
+        echo "$(timestamp): $item deleted" >> "$LOGFILE"
+    fi
+done
+
+##### 3. Cleanup old files in BACKUPS (> 90 days) #####
+echo "$(timestamp): Cleaning old backup files in $BACKUPS_DIR (> 90 days old)" >> "$LOGFILE"
+
+if [ -d "$BACKUPS_DIR" ]; then
+    files_to_delete=( $(find "$BACKUPS_DIR" -type f -mtime +90) )
+    if [ ${#files_to_delete[@]} -eq 0 ]; then
+        echo "$(timestamp): No files in BACKUPS to delete" >> "$LOGFILE"
+    else
+        for file in "${files_to_delete[@]}"; do
+            rm -f "$file"
+            echo "$(timestamp): $(basename "$file") deleted from BACKUPS" >> "$LOGFILE"
+        done
+    fi
+fi
+
+##### 4. Cleanup old log files (> 1 year) #####
+echo "$(timestamp): Cleaning old log files in $LOGDIR (> 1 year old)" >> "$LOGFILE"
+
+if [ -d "$LOGDIR" ]; then
+    old_logs=( $(find "$LOGDIR" -type f -mtime +365) )
+    if [ ${#old_logs[@]} -eq 0 ]; then
+        echo "$(timestamp): No old log files to delete" >> "$LOGFILE"
+    else
+        for log_file in "${old_logs[@]}"; do
+            rm -f "$log_file"
+            echo "$(timestamp): $(basename "$log_file") deleted from logs" >> "$LOGFILE"
+        done
+    fi
+fi
+
+##### STOP Logging #####
+echo "$(timestamp): Cleanup finished" >> "$LOGFILE"
+```
