@@ -25,17 +25,28 @@ check_record() {
     for server in "${DNS_SERVERS[@]}"; do
         local output
         output=$(dig @"$server" "$record" "$type" +short +tries=1 +time=5 2>&1)
-        status=$?
+        local status=$?
+        
         if [[ $status -ne 0 ]]; then
             results+=("ERROR")
+            echo "ERROR querying $record ($type) on $server: dig exit code $status, output: $output" >> "$LOG_FILE"
         elif [[ -z "$output" ]]; then
             results+=("FAIL")
+            echo "FAIL $record ($type) on $server: no answer" >> "$LOG_FILE"
         elif echo "$output" | grep -qiE 'timed out|servfail|refused|no servers|connection timed'; then
             results+=("ERROR")
+            echo "ERROR $record ($type) on $server: $output" >> "$LOG_FILE"
         else
             results+=("OK")
+            echo "SUCCESS $record ($type) on $server: $output" >> "$LOG_FILE"
         fi
     done
+
+    {
+        IFS=','; echo "$type,$record,${results[*]}"; unset IFS
+    } >> "$OUTPUT_FILE"
+}
+
 
     # Append results safely
     {
